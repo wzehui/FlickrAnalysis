@@ -1,5 +1,7 @@
 import pandas as pd
-from datetime import datetime
+import datetime
+import matplotlib
+import matplotlib.pyplot as plt
 
 # load Flickr data from CSV to DataFrame
 filename = './flickr_14.10.2020.csv'
@@ -12,27 +14,46 @@ for i in df.index:
 df.reset_index(drop=True,inplace=True)
 
 # Condition 2: maximal time interval within a year is NOT more than 30 days
+time_interval = pd.DataFrame(columns=['owner','interval'])
 format = '%Y-%m-%d %H:%M:%S'
-time_interval = pd.DataFrame(columns=['owner','date_min','date_max'])
-# for i in df.index:
-#     if df.owner[i] not in time_interval['owner'].values:
-#         time_interval = time_interval.append({'owner':df.owner[i],
-#                                               'date_min':df.datetaken[i],
-#                                               'date_max':df.datetaken[i]},
-#                                              ignore_index=True)
-#     else:
-#         item = time_interval[time_interval['owner'].str.contains(df.owner[i])]
-#         for idx in item.index:
-#             print(df.datetaken[i])
-#             if datetime.strptime(df.datetaken[i], format).year != datetime.strptime(item.loc[idx].iat[1], format).year:
-#                 time_interval = time_interval.append({'owner': df.owner[i],
-#                                                       'date_min': df.datetaken[i],
-#                                                       'date_max': df.datetaken[i]},
-#                                                      ignore_index=True)
-#                 item = time_interval[time_interval['owner'].str.contains(df.owner[i])]
-#             else:
-#                 if datetime.strptime(df.datetaken[i],format) < datetime.strptime(item.loc[idx].iat[1],format):
-#                     time_interval.loc[time_interval['owner'].str.contains(df.owner[i]), 'date_min'] = df.datetaken[i]
-#                 elif datetime.strptime(df.datetaken[i],format) > datetime.strptime(item.loc[idx].iat[2],format):
-#                     time_interval.loc[time_interval['owner'].str.contains(df.owner[i]), 'date_max'] = df.datetaken[i]
-#
+owner = df['owner']
+owner.drop_duplicates(keep='first',inplace=True)
+for owner_id in owner:
+    item = df[df['owner'].str.contains(owner_id)]
+    item = item['datetaken'].to_list()
+    item = sorted([datetime.datetime.strptime(i,format) for i in item], reverse=False)
+    i = 1
+    while i < len(item)-1:
+        if item[i].year == item[i-1].year:
+            if item[i].year != item[i+1].year:
+                i += 1
+            else:
+                item.pop(i)
+        else:
+            i += 1
+    time_interval = time_interval.append({'owner': owner_id,
+                                          'interval': item},
+                                         ignore_index=True)
+# i =0
+# for index, row in time_interval.iterrows():
+#     if len(row['interval']) > 1:
+#         i += 1
+time = []
+for index, row in time_interval.iterrows():
+    if len(row['interval']) > 1:
+        i = 1
+        while i < len(row['interval']):
+            if row['interval'][i].year == row['interval'][i-1].year:
+                delta = (row['interval'][i]-row['interval'][i-1]).days \
+                        + (row['interval'][i]-row['interval'][i-1]).seconds/3600
+                time.append((delta))
+                i += 2
+            else:
+                # time.append(datetime.timedelta(seconds=0).seconds)
+                i += 1
+
+num_bins = 300
+plt.hist(time, num_bins)
+x_ticks = range(0,105,15)
+plt.xticks(x_ticks)
+plt.show()
