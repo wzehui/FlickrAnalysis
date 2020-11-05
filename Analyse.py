@@ -185,11 +185,25 @@ df.to_excel('dbscan_0.02.xls')
 #        print(params[i])
 #        print('\n')
 ##
-from mlxtend.frequent_patterns import fpgrowth, association_rules
-df_association = df[['owner', 'cluster']].copy(deep=True)
-df_association['frequency'] = 1
-table = pd.pivot_table(df_association, values='frequency',index=['owner'],columns=['cluster'],aggfunc=np.sum,fill_value=0)
-frequent_itemsets = fpgrowth(table.astype('bool'), min_support=0.01, use_colnames=True)
-print(frequent_itemsets)
-res = association_rules(frequent_itemsets,metric='confidence',min_threshold=0.8)
-print(res)
+#from mlxtend.frequent_patterns import fpgrowth, association_rules
+#df_association = df[['owner', 'cluster']].copy(deep=True)
+#df_association['frequency'] = 1
+#table = pd.pivot_table(df_association, values='frequency',index=['owner'],columns=['cluster'],aggfunc=np.sum,fill_value=0)
+#frequent_itemsets = fpgrowth(table.astype('bool'), min_support=0.01, use_colnames=True)
+#print(frequent_itemsets)
+#res = association_rules(frequent_itemsets,metric='confidence',min_threshold=0.8)
+#print(res)
+df_aa = df[['owner','datetaken','cluster']]
+owner_aa = df_aa['owner']
+owner_aa = owner_aa.drop_duplicates(keep="first", inplace=False)
+owner_aa.reset_index(drop=True, inplace=True)
+owner_aa = pd.merge(owner_aa, analysis, how='inner')
+#i = 0
+#for owner_iter in owner_aa.itertuples():
+#    item_aa = df_aa[df_aa['owner'].str.contains(owner_iter.owner)]
+#    if item_aa.shape[0] == 1:
+#        df_aa = df_aa.append(item_aa)
+#        df_aa = df_aa.drop_duplicates(subset=['owner'], keep=False)
+#        i += 1
+#        print(i)
+#df_aa.reset_index(drop=True, inplace=True)
