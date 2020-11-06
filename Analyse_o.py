@@ -17,87 +17,90 @@ for i in df.index:
         df = df.drop(index=i)
 df.reset_index(drop=True,inplace=True)
 
-# Creat table for analysis
-analysis = pd.DataFrame(columns=['owner','interval','weekend','total','var_loc'])
-# Creat user list
-owner = df['owner']
-owner.drop_duplicates(keep='first', inplace=True)
-owner.reset_index(drop=True, inplace=True)
-# Count the number of phototaken on weekend
-for owner_id in owner:
-    item = df[df['owner'].str.contains(owner_id)]
-    item = item['datetaken'].to_list()
-    item = sorted([datetime.strptime(i,format) for i in item], reverse=False)
-    # check the occurrences of weekend
-    total = len(item)
-    weekend = 0
-    for item_s in item:
-        if datetime.isoweekday(item_s) in [5, 6, 7]:
-            weekend += 1
-    # Find maximal time interval in each year
-    i = 1
-    while i < len(item)-1:
-        if item[i].year == item[i-1].year:
-            if item[i].year != item[i+1].year:
-                i += 1
-            else:
-                item.pop(i)
-        else:
-            i += 1
-    analysis = analysis.append({'owner': owner_id,
-                                'interval': item,
-                                'weekend': weekend,
-                                'total': total,},
-                               ignore_index=True)
-for index, row in analysis.iterrows():
-    interval = []
-    if len(row['interval']) > 1:
+def analyse(df):
+    # Creat table for analysis
+    analysis = pd.DataFrame(columns=['owner','interval','weekend','total','var_loc'])
+    # Creat user list
+    owner = df['owner']
+    owner.drop_duplicates(keep='first', inplace=True)
+    owner.reset_index(drop=True, inplace=True)
+    # Count the number of phototaken on weekend
+    for owner_id in owner:
+        item = df[df['owner'].str.contains(owner_id)]
+        item = item['datetaken'].to_list()
+        item = sorted([datetime.strptime(i,format) for i in item], reverse=False)
+        # check the occurrences of weekend
+        total = len(item)
+        weekend = 0
+        for item_s in item:
+            if datetime.isoweekday(item_s) in [5, 6, 7]:
+                weekend += 1
+        # Find maximal time interval in each year
         i = 1
-        while i < len(row['interval']):
-            if row['interval'][i].year == row['interval'][i-1].year:
-                delta = (row['interval'][i]-row['interval'][i-1]).days \
-                        + (row['interval'][i]-row['interval'][i-1]).seconds/3600
-                interval.append(str(row['interval'][i].year)+ ":" + str(delta))
-                i += 2
+        while i < len(item)-1:
+            if item[i].year == item[i-1].year:
+                if item[i].year != item[i+1].year:
+                    i += 1
+                else:
+                    item.pop(i)
             else:
-                interval.append(str(row['interval'][i].year)+ ":" + str(timedelta(seconds=0).seconds))
                 i += 1
-    else:
-        interval.append(str(row['interval'][0].year)+ ":" + str(timedelta(seconds=0).seconds))
-    analysis.loc[index,'interval'] = interval
-# Calculate the variance of the longitude and latitude for each user
-for owner_id in owner:
-    item = df[df['owner'].str.contains(owner_id)]
-    var_lati = (item['latitude']).var()
-    var_longi = (item['longitude']).var()
-    if math.isnan(var_lati):
-        var_loc = 0
-    else:
-        var_loc = math.sqrt((var_lati + var_longi)/2)
-    idx = owner[owner.str.contains(owner_id)].index
-    analysis.loc[idx, 'var_loc'] = var_loc
+        analysis = analysis.append({'owner': owner_id,
+                                    'interval': item,
+                                    'weekend': weekend,
+                                    'total': total,},
+                                   ignore_index=True)
+    for index, row in analysis.iterrows():
+        interval = []
+        if len(row['interval']) > 1:
+            i = 1
+            while i < len(row['interval']):
+                if row['interval'][i].year == row['interval'][i-1].year:
+                    delta = (row['interval'][i]-row['interval'][i-1]).days \
+                            + (row['interval'][i]-row['interval'][i-1]).seconds/3600
+                    interval.append(str(row['interval'][i].year)+ ":" + str(delta))
+                    i += 2
+                else:
+                    interval.append(str(row['interval'][i].year)+ ":" + str(timedelta(seconds=0).seconds))
+                    i += 1
+        else:
+            interval.append(str(row['interval'][0].year)+ ":" + str(timedelta(seconds=0).seconds))
+        analysis.loc[index,'interval'] = interval
+    # Calculate the variance of the longitude and latitude for each user
+    for owner_id in owner:
+        item = df[df['owner'].str.contains(owner_id)]
+        var_lati = (item['latitude']).var()
+        var_longi = (item['longitude']).var()
+        if math.isnan(var_lati):
+            var_loc = 0
+        else:
+            var_loc = math.sqrt((var_lati + var_longi)/2)
+        idx = owner[owner.str.contains(owner_id)].index
+        analysis.loc[idx, 'var_loc'] = var_loc
 
-# Condition 3: maximal time interval within a year is NOT more than 30 days
-analysis_d = analysis.copy(deep=True)
-for index, item in analysis_d.iterrows():
-    item_d = []
-    weekend_percent = item.weekend / item.total
-    if weekend_percent < 0.9 and item.var_loc < 0.1:
-        for item_s in item.interval:
-            [year, duration] = item_s.split(':')
-            if float(duration) > 30:
-                item_d.append(year)
-    analysis_d.loc[index, 'interval'] = item_d
-analysis_d.drop(labels=['weekend','total','var_loc'], axis=1, inplace=True)
+    # Condition 3: maximal time interval within a year is NOT more than 30 days
+    analysis_d = analysis.copy(deep=True)
+    for index, item in analysis_d.iterrows():
+        item_d = []
+        weekend_percent = item.weekend / item.total
+        if weekend_percent < 0.9 and item.var_loc < 0.1:
+            for item_s in item.interval:
+                [year, duration] = item_s.split(':')
+                if float(duration) > 30:
+                    item_d.append(year)
+        analysis_d.loc[index, 'interval'] = item_d
+    analysis_d.drop(labels=['weekend','total','var_loc'], axis=1, inplace=True)
 
-for item in analysis_d.itertuples():
-    if len(item.interval) != 0:
-        owner_d = df[df['owner'].str.contains(item.owner)]
-        for item_s in item.interval:
-            owner_dd = owner_d[owner_d['datetaken'].str.contains(item_s)]
-            df = df.append(owner_dd)
-            df = df.drop_duplicates(subset=df.columns.values, keep=False)
-df.reset_index(drop=True, inplace=True)
+    for item in analysis_d.itertuples():
+        if len(item.interval) != 0:
+            owner_d = df[df['owner'].str.contains(item.owner)]
+            for item_s in item.interval:
+                owner_dd = owner_d[owner_d['datetaken'].str.contains(item_s)]
+                df = df.append(owner_dd)
+                df = df.drop_duplicates(subset=df.columns.values, keep=False)
+    df.reset_index(drop=True, inplace=True)
+
+    return df
 
 # Clustering
 df_sub = df[['latitude', 'longitude']]
@@ -198,12 +201,14 @@ owner_aa = df_aa['owner']
 owner_aa = owner_aa.drop_duplicates(keep="first", inplace=False)
 owner_aa.reset_index(drop=True, inplace=True)
 owner_aa = pd.merge(owner_aa, analysis, how='inner')
-#i = 0
-#for owner_iter in owner_aa.itertuples():
-#    item_aa = df_aa[df_aa['owner'].str.contains(owner_iter.owner)]
-#    if item_aa.shape[0] == 1:
-#        df_aa = df_aa.append(item_aa)
-#        df_aa = df_aa.drop_duplicates(subset=['owner'], keep=False)
-#        i += 1
-#        print(i)
+i = 0
+for owner_iter in owner_aa.itertuples():
+    item_aa = df_aa[df_aa['owner'].str.contains(owner_iter.owner)]
+    if item_aa.shape[0] == 1:
+        df_aa = df_aa.append(item_aa)
+        print(df_aa.shape[0])
+        df_aa_after = df_aa.drop_duplicates(subset=df_aa.columns.values,keep='first')
+        print(df_aa_after.shape[0])
+        i += 1
+print(i)
 #df_aa.reset_index(drop=True, inplace=True)
