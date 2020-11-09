@@ -35,14 +35,11 @@ m.add_child(folium.LatLngPopup())
 for i in sheet.owner.index:
     long = sheet.longitude[i]
     lati = sheet.latitude[i]
-
-    cluster_idx = int(sheet.cluster[i].split('_')[1])
-    if cluster_idx != 0:
-        folium.Marker(
-            location=[lati, long],
-            popup=str(cluster_idx),
-            icon=folium.Icon(color=colors[cluster_idx % 18])
-        ).add_to(m)
+    folium.Marker(
+        location=[lati, long],
+        popup=str(sheet.cluster[i]),
+        icon=folium.Icon(color=colors[sheet.cluster[i] % 18])
+    ).add_to(m)
 
 
 
