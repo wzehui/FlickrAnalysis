@@ -1,32 +1,51 @@
+from mlxtend.frequent_patterns import fpgrowth, association_rules
 import pandas as pd
-from mlxtend.frequent_patterns import apriori
-from mlxtend.frequent_patterns import association_rules
+import numpy as np
 
-df = pd.read_excel('http://archive.ics.uci.edu/ml/machine-learning-databases/00352/Online%20Retail.xlsx')
-df.head()
+def find_association(df, analysis_cluster):
+    # remove the users, whose photos are only in one cluster and whose
+    # interval of photos are more than 30 days
+    owner_list = df.owner.unique()
+    for owner_list_iter in owner_list:
+        item_delete = df[df['owner'] == owner_list_iter]
+        if item_delete.cluster.unique().size == 1:
+            pass
+        else:
+            interval_list = analysis_cluster[analysis_cluster['owner'] ==
+                           owner_list_iter].interval.values[0]
+            for interval_list_iter in interval_list:
+                [year, duration] = interval_list_iter.split(':')
+                if float(duration) < 30:
+                    item_retain = item_delete[item_delete['datetaken'].str.contains(
+                        year)]
+                    item_delete = item_delete.append(item_retain)
+                    item_delete.drop_duplicates(keep=False, inplace=True)
 
-df['Description'] = df['Description'].str.strip()
-df.dropna(axis=0, subset=['InvoiceNo'], inplace=True)
-df['InvoiceNo'] = df['InvoiceNo'].astype('str')
-df = df[~df['InvoiceNo'].str.contains('C')]
+        df = df.append(item_delete)
+        df.drop_duplicates(keep=False, inplace=True, ignore_index=True)
 
-basket = (df[df['Country'] =="France"]
-          .groupby(['InvoiceNo', 'Description'])['Quantity']
-          .sum().unstack().reset_index().fillna(0)
-          .set_index('InvoiceNo'))
+    # generate pivot table for association analysis
+    df['frequency'] = 1
+    pivot_table = pd.pivot_table(df, values='frequency', index=['owner'],
+                           columns=['cluster'], aggfunc=np.sum, fill_value=0)
+    frequent_itemsets = fpgrowth(pivot_table.astype('bool'), min_support=0.03,
+                                 use_colnames=True)
+    # print(frequent_itemsets)
+    rule = association_rules(frequent_itemsets, metric='confidence',
+                            min_threshold=0.7)
+    return rule
 
-def encode_units(x):
-    if x <= 0:
-        return 0
-    if x >= 1:
-        return 1
+if __name__ == '__main__':
+    from Preprocess import data_cleaning
+    from Clustering import dbscan
+    from Visualization import map
+    import pandas as pd
 
-basket_sets = basket.applymap(encode_units)
-basket_sets.drop('POSTAGE', inplace=True, axis=1)
+    # load Flickr data from CSV to DataFrame
+    filename = './flickr_14.10.2020.csv'
+    cluster_result_path = 'dbscan_0.06_40.xls'
+    df = pd.read_csv(filename, sep=';', encoding='latin-1')
 
-frequent_itemsets = apriori(basket_sets, min_support=0.07, use_colnames=True)
-
-rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1)
-rules.head()
-
-rules[(rules['lift'] >= 6) & (rules['confidence'] >= 0.8)]
+    df, analysis_cluster = data_cleaning(df)
+    df = dbscan(df)
+    find_association(df, analysis_cluster)

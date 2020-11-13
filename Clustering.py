@@ -2,9 +2,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN
 import pandas as pd
 
-def cluster(df):
+def dbscan(df):
     # Clustering
-    df_sub = df[['latitude', 'longitude']]
+    # df_sub = df[['latitude', 'longitude']]
     # Standarize features
     scaler = StandardScaler()
     df_std = scaler.fit_transform(df[['latitude', 'longitude']])

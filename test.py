@@ -1,126 +1,87 @@
-import math
+import plotly.express as px
+from Preprocess import data_cleaning
+from Clustering import dbscan
 import pandas as pd
-from datetime import datetime, timedelta
+import plotly.graph_objects as go
+from AssociationRules import find_association
 
 # load Flickr data from CSV to DataFrame
 filename = './flickr_14.10.2020.csv'
-format = '%Y-%m-%d %H:%M:%S'
+cluster_result_path = 'dbscan_0.06_40.xls'
 df = pd.read_csv(filename, sep=';', encoding='latin-1')
 
+df, analysis_cluster = data_cleaning(df)
+df = dbscan(df)
+rule = find_association(df, analysis_cluster)
 
-df.drop(columns=['server', 'title', 'datetakenunknown', 'views',
-                 'url_l'], inplace=True)
+mapbox_access_token = \
+    'pk.eyJ1Ijoiem9pcGh5IiwiYSI6ImNraGVwdm1qbjA0aTEzMW0yeGhmdTh3aGgifQ.uYmOx-yQ5hJdBQgRm7SO3w'
+px.set_mapbox_access_token(mapbox_access_token)
 
-# Condition 1 & 2: datetaken and dateupload are NOT identical & datetaken
-# time is valid
-for i in df.index:
-    if df.datetaken[i] == df.dateupload[i] or datetime.strptime(
-            df.datetaken[i], format) > datetime.now():
-        df = df.drop(index=i)
-df.drop(columns=['dateupload'], inplace=True)
-df.reset_index(drop=True, inplace=True)
+df['cluster'] = df['cluster'].astype(str)
+fig = px.scatter_mapbox(df, lat="latitude", lon="longitude",
+                        opacity= 0.3,
+                        zoom=8.85, center={'lat': 47.45, 'lon': 9.43})
 
-# Creat table for clustering
-analysis_cluster = pd.DataFrame(
-    columns=['owner', 'interval', 'weekend', 'total', 'var_loc'])
-# Creat user list
-owner_list = df['owner']
-owner_list.drop_duplicates(keep='first', inplace=True)
-owner_list.reset_index(drop=True, inplace=True)
+cluster_list = df.cluster.unique()
+amount_list = []
+lat_mean_list = []
+lon_mean_list = []
+for cluster_list_iter in cluster_list:
+    item = df[df['cluster'] == cluster_list_iter]
+    amount_list.append(item.shape[0])
+    lat_mean_list.append(item.latitude.mean())
+    lon_mean_list.append(item.longitude.mean())
 
-# Generate analysis table
-for owner_list_iter in owner_list:
-    item_iter = df[df['owner'].str.contains(owner_list_iter)]
-
-    # Calculate the variance of the longitude and latitude for each user
-    var_lati = (item_iter['latitude']).var()
-    var_longi = (item_iter['longitude']).var()
-    if math.isnan(var_lati):
-        var_loc = 0
-    else:
-        var_loc = math.sqrt((var_lati + var_longi) / 2)
-    # idx = owner_list[owner_list.str.contains(owner_list_iter)].index
-
-    # Count the number of phototaken on weekend
-    datetaken_list = item_iter['datetaken'].to_list()
-    datetaken_list = sorted(
-        [datetime.strptime(i, format) for i in datetaken_list],
-        reverse=False)
-    # Check the occurrences of weekend
-    total = len(datetaken_list)
-    weekend = 0
-    for datetaken_list_iter in datetaken_list:
-        if datetime.isoweekday(datetaken_list_iter) in [5, 6, 7]:
-            weekend += 1
-
-    # Find maximal time interval in each year
-    i = 1
-    while i < len(datetaken_list) - 1:
-        if datetaken_list[i].year == datetaken_list[i - 1].year:
-            if datetaken_list[i].year != datetaken_list[i + 1].year:
-                i += 1
-            else:
-                datetaken_list.pop(i)
-        else:
-            i += 1
-    # analysis_cluster.loc[idx, 'var_loc'] = var_loc
-
-    # Calculate time maximal interval between two phototaken in one year
-    interval = []
-    if len(datetaken_list) > 1:
-        i = 1
-        while i < len(datetaken_list):
-            if datetaken_list[i].year == datetaken_list[i - 1].year:
-                delta = (datetaken_list[i] - datetaken_list[i - 1]).days \
-                        + (datetaken_list[i] - datetaken_list[
-                    i - 1]).seconds / 3600
-                interval.append(
-                    str(datetaken_list[i].year) + ":" + str(delta))
-                i += 2
-            else:
-                interval.append(str(datetaken_list[i].year) + ":" + str(
-                    timedelta(seconds=0).seconds))
-                i += 1
-    else:
-        interval.append(str(datetaken_list[0].year) + ":" + str(
-            timedelta(seconds=0).seconds))
-    # analysis_cluster.loc[index, 'interval'] = interval
-    analysis_cluster = analysis_cluster.append({'owner': owner_list_iter,
-                                                'interval': interval,
-                                                'weekend': weekend,
-                                                'total': total,
-                                                'var_loc': var_loc},
-                                               ignore_index=True)
-
-#for index, item_iter in analysis_cluster.iterrows():
-#    year_delete = []
-#    weekend_percent = item_iter.weekend / item_iter.total
-#    if weekend_percent < 0.9 and item_iter.var_loc < 0.1:
-#        for item_str in item_iter.interval:
-#            [year, duration] = item_str.split(':')
-#            if float(duration) > 30:
-#                year_delete.append(year)
+cluster_mean_dict = {'cluster': cluster_list,
+                     'amount': amount_list,
+                     'lat_mean': lat_mean_list,
+                     'lon_mean': lon_mean_list
+                     }
+cluster_mean = pd.DataFrame(cluster_mean_dict)
+#cluster_mean['cluster'] = cluster_mean['cluster'].astype(str)
+fig.add_trace(go.Scattermapbox(
+        lat=cluster_mean.lat_mean,
+        lon=cluster_mean.lon_mean,
+        mode='markers',
+        marker=go.scattermapbox.Marker(
+            size=17,
+            color='rgb(255, 0, 0)',
+            opacity=0.7
+        ),
+        # text=locations_name,
+        # hoverinfo='text'
+    ))
+#fig.add_trace(px.scatter_mapbox(cluster_mean, lat="lat_mean", lon="lon_mean",
+#                        color="cluster",
+#                        color_discrete_sequence=px.colors.qualitative.Bold,
+#                        size="amount", size_max=35, zoom=8.85, center={
+#        'lat': 47.45, 'lon': 9.43}))
 #
-#    if len(year_delete) != 0:
-#        item = df[df['owner'].str.contains(item_iter.owner)]
-#        for year_delete_iter in year_delete:
-#            item_delete = item[item['datetaken'].str.contains(
-#                year_delete_iter)]
-#            df = df.append(item_delete)
-#            df.drop_duplicates(subset=df.columns.values, keep=False,
-#                               inplace=True)
-for i in range(1,max(df.index)):
-    find = df.iloc[0:i,:]
-    item = df.iloc[0:1,:]
-    df_a = find.append(item)
-    df_a.drop_duplicates(keep=False,inplace=True)
-    if df_a.shape[0] != find.shape[0]-1:
-        print(find)
-        print(i)
+for index, rule_iter in rule.iterrows():
+    for ante_item in rule_iter.antecedents:
+        for conse_item in rule_iter.consequents:
+            ante_lat = cluster_mean[cluster_mean[
+                                        'cluster']==str(
+                ante_item)].lat_mean.values
+            ante_lon = cluster_mean[cluster_mean[
+                                        'cluster']==str(
+                ante_item)].lon_mean.values
+            conse_lat = cluster_mean[cluster_mean[
+                                        'cluster']==str(
+                conse_item)].lat_mean.values
+            conse_lon = cluster_mean[cluster_mean[
+                                        'cluster']==str(
+                conse_item)].lon_mean.values
+            fig.add_trace(go.Scattermapbox(
+                mode = "lines",
+                lat = [ante_lat[0], conse_lat[0]],
+                lon = [ante_lon[0], conse_lon[0]],
+                hoverinfo = "text",
+                hovertext = str(ante_item) + '----->' + str(conse_item),
+                line = dict(color="red", width = 1)
+                ))
 
-
-#find = df.iloc[0:43, :]
-#item = df.iloc[0:1,:]
-#df_a = find.append(item)
-#df_a.drop_duplicates(keep=False,inplace=True)
-#print(1)
+## fig.update_layout(mapbox = {'accesstoken': mapbox_access_token})
+#
+fig.show()

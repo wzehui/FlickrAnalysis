@@ -109,7 +109,7 @@ def data_cleaning(df):
                df = df.append(item_delete)
                df.drop_duplicates(keep=False, inplace=True, ignore_index=True)
 
-    return df
+    return df, analysis_cluster
 
 
 if __name__ == "__main__":
@@ -118,4 +118,4 @@ if __name__ == "__main__":
     format = '%Y-%m-%d %H:%M:%S'
     df = pd.read_csv(filename, sep=';', encoding='latin-1')
 
-    df = data_cleaning(df)
+    df, analysis_cluster = data_cleaning(df)
