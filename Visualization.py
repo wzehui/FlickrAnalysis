@@ -37,3 +37,4 @@ def map(path):
             icon=folium.Icon(color=colors[sheet.dbscan[i] % 18])
         ).add_to(m)
     m.save('Bodensee_0.06_40.html')
+

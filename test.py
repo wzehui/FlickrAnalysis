@@ -14,14 +14,11 @@ df, analysis_cluster = data_cleaning(df)
 df = dbscan(df)
 rule = find_association(df, analysis_cluster)
 
+# Visualisation
+
 mapbox_access_token = \
     'pk.eyJ1Ijoiem9pcGh5IiwiYSI6ImNraGVwdm1qbjA0aTEzMW0yeGhmdTh3aGgifQ.uYmOx-yQ5hJdBQgRm7SO3w'
 px.set_mapbox_access_token(mapbox_access_token)
-
-df['cluster'] = df['cluster'].astype(str)
-fig = px.scatter_mapbox(df, lat="latitude", lon="longitude",
-                        opacity= 0.3,
-                        zoom=8.85, center={'lat': 47.45, 'lon': 9.43})
 
 cluster_list = df.cluster.unique()
 amount_list = []
@@ -39,25 +36,26 @@ cluster_mean_dict = {'cluster': cluster_list,
                      'lon_mean': lon_mean_list
                      }
 cluster_mean = pd.DataFrame(cluster_mean_dict)
-#cluster_mean['cluster'] = cluster_mean['cluster'].astype(str)
-fig.add_trace(go.Scattermapbox(
-        lat=cluster_mean.lat_mean,
-        lon=cluster_mean.lon_mean,
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=17,
-            color='rgb(255, 0, 0)',
-            opacity=0.7
-        ),
-        # text=locations_name,
-        # hoverinfo='text'
-    ))
-#fig.add_trace(px.scatter_mapbox(cluster_mean, lat="lat_mean", lon="lon_mean",
-#                        color="cluster",
-#                        color_discrete_sequence=px.colors.qualitative.Bold,
-#                        size="amount", size_max=35, zoom=8.85, center={
-#        'lat': 47.45, 'lon': 9.43}))
-#
+cluster_mean['cluster'] = cluster_mean['cluster'].astype(str)
+
+fig = px.scatter_mapbox(cluster_mean, title='',
+                        lat="lat_mean", lon="lon_mean",
+                        color="cluster",
+                        color_discrete_sequence=px.colors.qualitative.Prism,
+                        size="amount", size_max=40, hover_name="cluster",
+                        hover_data={'cluster':False,
+                                    'lat_mean':False,
+                                    'lon_mean':False},
+                        zoom=8.85, center={'lat': 47.45, 'lon': 9.43})
+fig.update_traces(showlegend=False)
+
+fig.add_trace(go.Scattermapbox(lat= df.latitude, lon= df.longitude,
+                               mode='markers', hoverinfo='skip',
+                               marker=go.scattermapbox.Marker(size=3,
+                                                              opacity= 0.5,
+                                                              color='gray'),
+                               showlegend=False))
+
 for index, rule_iter in rule.iterrows():
     for ante_item in rule_iter.antecedents:
         for conse_item in rule_iter.consequents:
@@ -77,11 +75,8 @@ for index, rule_iter in rule.iterrows():
                 mode = "lines",
                 lat = [ante_lat[0], conse_lat[0]],
                 lon = [ante_lon[0], conse_lon[0]],
-                hoverinfo = "text",
-                hovertext = str(ante_item) + '----->' + str(conse_item),
-                line = dict(color="red", width = 1)
-                ))
-
-## fig.update_layout(mapbox = {'accesstoken': mapbox_access_token})
-#
+                hoverinfo = 'skip',
+                name = str(ante_item) + ' --> ' + str(conse_item),
+                line = dict(width = 3 * (rule_iter.confidence)**4)))
+fig.update_layout(legend_title_text = 'Association Rules')
 fig.show()
