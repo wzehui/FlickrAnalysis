@@ -138,5 +138,9 @@ dmypy.json
 cython_debug/
 
 # MacOS
-.idea/
+.idea
 .DS_Store
+
+# gitignore
+.gitignore
+
